@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.92]
+* Connecting logic using shared scanner
+* Rename meters sensor names
+* Changed order of options schema so BMS alias is now visible in visual editor
+* Show RSSI during ble scanﬂ
+
 ## [1.91]
 * `aioblebms` v0.12
 * fix numeric precision
