@@ -36,7 +36,7 @@ async def get_shared_scanner(adapter=None, restart=False, **kwargs) -> BleakScan
                 _stop_task = asyncio.create_task(_stop_loop())
         elif restart:
             sc = _scanners[adapter][0]
-            logger.info(f'restarting scanner on adapter {adapter}')
+            logger.info(f'restarting scanner on adapter {adapter or "default"}')
             await sc.stop()
             await asyncio.sleep(.2)
             await sc.start()
@@ -65,3 +65,13 @@ async def stop_all_scanners():
     async with lock:
         for adapter, (sc, t_last_use) in _scanners.copy().items():
             await sc.stop()
+
+
+async def resolve_address(address, adapter=None, timeout=4):
+    sc = await get_shared_scanner(adapter)
+    to = time.time()+timeout
+    while time.time() <= to:
+        for dev in sc.discovered_devices:
+            if dev.address.lower().strip() == address.lower().strip():
+                return dev
+    return None

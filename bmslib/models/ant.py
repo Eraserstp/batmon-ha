@@ -5,6 +5,11 @@ https://github.com/syssi/esphome-ant-bms/blob/main/components/ant_bms_ble/ant_bm
 https://github.com/juamiso/ANT_BMS
 https://github.com/Sgw32/BMSCtl
 
+Apps
+iOS / Macos
+*
+
+
 
 INFO:__main__:Connecting 9AA68C04-9C48-4FAD-7798-13ABB4878996
 INFO:__main__:Connected: True
@@ -17,6 +22,7 @@ INFO:__main__:	[Characteristic] 0000ffe2-0000-1000-8000-00805f9b34fb (Handle: 18
 import asyncio
 import enum
 import math
+import sys
 
 import crcmod as crcmod
 
@@ -103,8 +109,9 @@ class AntBt(BtBms):
     async def connect(self, timeout=20, **kwargs):
         # await super().connect(**kwargs)
         try:
-            await super().connect(timeout=6)
+            await super().connect(timeout=timeout)
         except Exception as e:
+            self.logger.error(sys.exc_info(), exc_info=True)
             self.logger.info("%s normal connect failed (%s), connecting with scanner", self.name, str(e) or type(e))
             await self._connect_with_scanner(timeout=timeout)
 

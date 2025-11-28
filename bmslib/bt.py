@@ -139,7 +139,7 @@ class BtBms:
             self.client = BleakDummyClient(address, disconnected_callback=self._on_disconnect)
             self._adapter = "fake"
         else:
-            kwargs = {}
+
             if psk:
                 try:
                     import bleak.backends.bluezdbus.agent
@@ -156,15 +156,7 @@ class BtBms:
                 assert adapter, "You need to specify a serial device (adapter)"
                 self.client = SerialBleakClientWrapper(adapter)
             else:
-                if adapter:  # hci0, hci1 (BT adapter hardware)
-                    self.logger.info('Using adapter %s to connect to %s (%s)', adapter, address, name)
-                    kwargs['adapter'] = adapter
-
-                self.client = BleakClient(address,
-                                          handle_pairing=bool(psk),
-                                          disconnected_callback=self._on_disconnect,
-                                          **kwargs
-                                          )
+                self.client = self._create_client(address)
 
             self._in_disconnect = False
 
@@ -173,6 +165,18 @@ class BtBms:
             otherwise start_notify will fail on re-connect
             """
             self._pending_disconnect_call = False
+
+    def _create_client(self, addr_or_device):
+        kwargs = {}
+        adapter = self._adapter
+        if adapter:  # hci0, hci1 (BT adapter hardware)
+            self.logger.info('Using adapter %s to connect to %s (%s)', adapter, self.address, self.name)
+            kwargs['adapter'] = adapter
+        return BleakClient(addr_or_device,
+                           handle_pairing=bool(self._psk),
+                           disconnected_callback=self._on_disconnect,
+                           **kwargs
+                           )
 
     @property
     def connect_time(self):
@@ -262,9 +266,21 @@ class BtBms:
         if self.verbose_log:
             self.logger.info('connecting %s (%s) adapter=%s timeout=%d', self.name, self.address,
                              self._adapter or "default", timeout)
-        # bleak`s connect timeout is buggy (on macos)
+
+        # re-create the client because we use our own addr-to-device resolving (with the shared scanner)
+        dev = await resolve_address(self.address, self._adapter, timeout=timeout)
+        if dev is None:
+            self.logger.warning('%s: device %s not discovered, trying to connect anyway', self.name, self.address)
+            await (await get_shared_scanner(self._adapter)).stop()
+            # ^ stop scanner to prevent
+            # ^ `bleak.exc.BleakDBusError: [org.bluez.Error.InProgress] Operation already in progress`
+
+        self.client = self._create_client(self.address if dev is None else dev)
+
         try:
-            await asyncio.wait_for(self.client.connect(timeout=timeout), timeout=timeout + 1)
+            # bleak's connect timeout is buggy (on macOS), so we wrap another timeout
+            # dev = await resolve_address(self.address, self._adapter, timeout=timeout)
+            await asyncio.wait_for(self.client.connect(timeout=timeout), timeout=timeout + 2)
         except getattr(bleak.exc, 'BleakDeviceNotFoundError', bleak.exc.BleakError) as exc:
             if BtBms.shutdown:
                 raise
@@ -300,7 +316,7 @@ class BtBms:
 
     @property
     def is_connected(self):
-        return self.client.is_connected
+        return self.client and self.client.is_connected
 
     @property
     def is_virtual(self):

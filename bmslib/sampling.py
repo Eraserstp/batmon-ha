@@ -163,7 +163,8 @@ class BmsSampler:
             return None
 
         except SampleExpiredError as e:
-            logger.warning("%s: expired: %s", self.bms.name, e)
+            if self._num_errors < 3:
+                logger.warning("%s: expired: %s", self.bms.name, e)
             return None
 
         except GroupNotReady as e:
