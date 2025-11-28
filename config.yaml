@@ -43,9 +43,9 @@ options:
 
 schema:
   devices:
-    - address: str
+    - alias: "str?"
+      address: str
       type: str
-      alias: "str?"
       debug: "bool?"
       pin: "str?"
       adapter: "str?"
