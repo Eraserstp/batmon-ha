@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import time
 from functools import partial
 from typing import Tuple, Dict
@@ -68,7 +69,11 @@ async def stop_all_scanners():
 
 
 async def resolve_address(address, adapter=None, timeout=4):
-    sc = await get_shared_scanner(adapter)
+    try:
+        sc = await get_shared_scanner(adapter) # TODO try..catch
+    except Exception as e:
+        logger.error(sys.exc_info(), exc_info=True)
+        return None
     to = time.time()+timeout
     while time.time() <= to:
         for dev in sc.discovered_devices:
