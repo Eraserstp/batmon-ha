@@ -72,12 +72,15 @@ class AntBt(BtBms):
         self._switches = None
         self._last_response = None
         self._voltages = []
+        self.char = None
 
     def _notification_handler(self, sender, data: bytes):
 
         # MAX_RESPONSE_SIZE = 152
 
         # print("bms msg {0}: {1} {2}".format(sender, to_hex_str(data), data))
+
+        # self.logger.info('bms msg %d %r', len(data), data)
 
         if data.startswith(b'\x7E\xA1'):
             self._buffer.clear()
@@ -91,7 +94,7 @@ class AntBt(BtBms):
             frame_len = 6 + data_len + 4
 
             if len(buf) < frame_len:
-                self.logger.warning('Unexpected size: header says %d, got %d bytes', frame_len, len(buf))
+                self.logger.warning('Unexpected size: header says %d, got %d bytes (%r)', frame_len, len(buf), buf)
                 buf.clear()
                 return
 
@@ -115,15 +118,18 @@ class AntBt(BtBms):
             self.logger.info("%s normal connect failed (%s), connecting with scanner", self.name, str(e) or type(e))
             await self._connect_with_scanner(timeout=timeout)
 
-        await self.start_notify(self.CHAR_UUID, self._notification_handler)
+        self.char = self.find_char(self.CHAR_UUID, 'notify')
+        await self.start_notify(self.char, self._notification_handler)
 
     async def disconnect(self):
-        await self.client.stop_notify(self.CHAR_UUID)
+        await self.client.stop_notify(self.char)
         await super().disconnect()
+        self.char = None
 
     async def _q(self, cmd: AntCommandFuncs, addr, val, resp_code):
         with await self._fetch_futures.acquire_timeout(resp_code, timeout=self.TIMEOUT/2):
-            await self.client.write_gatt_char(self.CHAR_UUID, data=_ant_command(cmd, addr, val))
+            # print('writing', _ant_command(cmd, addr, val))
+            await self.client.write_gatt_char(self.char, data=_ant_command(cmd, addr, val))
             return await self._fetch_futures.wait_for(resp_code, self.TIMEOUT)
 
     async def fetch_device_info(self) -> DeviceInfo:
@@ -235,7 +241,7 @@ class AntBt(BtBms):
         register_onoff = dict(charge=[0x0006, 0x0004], discharge=[0x0003, 0x0001], balance=[0x000D, 0x000E],
                               buzzer=[0x001E, 0x001F])
         addr = register_onoff[switch][0 if state else 1]
-        await self.client.write_gatt_char(self.CHAR_UUID, data=_ant_command(AntCommandFuncs.WriteRegister, addr, 0))
+        await self.client.write_gatt_char(self.char, data=_ant_command(AntCommandFuncs.WriteRegister, addr, 0))
 
     def debug_data(self):
         return self._last_response
