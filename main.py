@@ -144,7 +144,10 @@ async def main():
     try:
         if len(sys.argv) > 1 and sys.argv[1] == "skip-discovery":
             raise Exception("skip-discovery")
-        ble_devices = await asyncio.wait_for(bmslib.bt.bt_discovery(logger, timeout=5), 30)
+        bl_ctrls = set(bmslib.bt.bt_controllers_hci() or [None])
+        bl_ctrls |= {dev.get('adapter') for dev in user_config.get('devices', []) if dev.get('adapter')}
+        g = asyncio.gather(*[bmslib.bt.bt_discovery(logger, timeout=5, adapter=a) for a in bl_ctrls])
+        ble_devices = (await asyncio.wait_for(g, 30))[0]
     except Exception as e:
         ble_devices = []
         logger.error('Error discovering devices: %s', e)
