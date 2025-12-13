@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import re
 import subprocess
 import time
@@ -32,11 +33,12 @@ except ImportError:
         pass
 
 
-@backoff.on_exception(backoff.expo, Exception, max_time=10, logger=None)
-async def bt_discovery(logger, timeout: int = 5):
-    logger.info('BT Discovery (%d seconds):', timeout)
+@backoff.on_exception(backoff.expo, Exception, max_time=10, logger=get_logger())
+async def bt_discovery(logger, timeout: int = 5, adapter=None):
+    ad = adapter or 'default'
+    logger.info('BT Discovery (%d seconds, adapter=%s):', timeout, adapter or 'default')
     from bmslib.scan import get_shared_scanner
-    scanner = await get_shared_scanner()
+    scanner = await get_shared_scanner(adapter=adapter)
     await asyncio.sleep(timeout)
     if hasattr(scanner, 'discovered_devices_and_advertisement_data'):
         devices = scanner.discovered_devices_and_advertisement_data
@@ -44,9 +46,9 @@ async def bt_discovery(logger, timeout: int = 5):
         if not devices:
             logger.info(' - no devices found - ')
         else:
-            logger.info("BT %*s %26s %4s", addr_len, 'addr', 'name', 'rssi')
-        for d, a in devices.values():
-            logger.info("BT %*s %26s %4s", addr_len, d.address, d.name, a.rssi)
+            logger.info("%s %*s %26s %4s", ad, addr_len, 'addr', 'name', 'rssi')
+        for d, a in sorted(devices.values(), key=lambda t: t[0].address):
+            logger.info("%s %*s %26s %4s", ad, addr_len, d.address, d.name, a.rssi)
         return [d for d, a in devices.values()]
     else:
         devices = scanner.discovered_devices
@@ -97,6 +99,12 @@ def bt_controllers():
         s = lin.decode('utf-8').split()
         controllers.append((s[1], ' '.join(s[2:])))
     return controllers
+
+def bt_controllers_hci():
+    try:
+        return os.listdir('/sys/class/bluetooth')
+    except:
+        return []
 
 
 def bt_power(on):
@@ -268,9 +276,10 @@ class BtBms:
                              self._adapter or "default", timeout)
 
         # re-create the client because we use our own addr-to-device resolving (with the shared scanner)
-        dev = await resolve_address(self.address, self._adapter, timeout=timeout)
+        dev = await resolve_address(self.address, adapter=self._adapter, timeout=timeout)
         if dev is None:
-            self.logger.warning('%s: device %s not discovered, trying to connect anyway', self.name, self.address)
+            self.logger.warning('%s: device %s not discovered from adapter %r, trying to connect anyway', self.name, self.address,
+                                self._adapter or "default")
             await (await get_shared_scanner(self._adapter)).stop()
             # ^ stop scanner to prevent
             # ^ `bleak.exc.BleakDBusError: [org.bluez.Error.InProgress] Operation already in progress`
@@ -353,6 +362,7 @@ class BtBms:
 
         from bmslib.scan import get_shared_scanner
         scanner = await get_shared_scanner(self._adapter, restart=True)
+        await asyncio.sleep(1)
 
         attempt = 1
         while True:
