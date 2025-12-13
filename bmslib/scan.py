@@ -31,7 +31,11 @@ async def get_shared_scanner(adapter=None, restart=False, **kwargs) -> BleakScan
 
             sc.stop = partial(_stop, sc, sc.stop)
             _scanners[adapter] = sc, time.time()
-            await sc.start()
+            try:
+                await sc.start()
+            except:
+                await sc.stop()
+                await sc.start()
             logger.debug('scanner started %s %s', adapter, sc)
             if _stop_task is None or _stop_task.done():
                 _stop_task = asyncio.create_task(_stop_loop())
