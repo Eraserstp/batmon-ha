@@ -442,7 +442,10 @@ class BmsSampler:
 
     async def _try_fetch_device_info(self):
         try:
-            self.device_info = await self.bms.fetch_device_info()
+            di = await self.bms.fetch_device_info()
+            if self.device_info is None:
+                logger.info('%s device_info=%s', self.bms.name, di)
+            self.device_info = di
         except NotImplementedError:
             pass
         except Exception as e:
