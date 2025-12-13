@@ -13,7 +13,7 @@ _stop_task: asyncio.Task = None
 
 lock = asyncio.Lock()
 
-SCANNER_TIMEOUT = 30  # seconds
+SCANNER_TIMEOUT = 60  # seconds
 
 logger = get_logger()
 
