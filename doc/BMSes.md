@@ -38,6 +38,11 @@
 + Has Cycle counter
 + Good current sensor & SoC estimating (ignoring low currents)
 
+Daly 250A:
+* current sensors
+  * min dsg: 300mA
+  * min chg: 300mA
+
 ## JBD BMS
 
 * Doesn't keep SoC on power loss
@@ -86,6 +91,9 @@
 * Weird SoC computation at certain voltage levels (which doesn't really work)
 * Buggy android app
 * Good current sensor, proper aliasing filter for inverter current (100 Hz)
+* has firmware updates
+* soc method
+  * https://diysolarforum.com/threads/ant-bms-shows-clearly-wrong-state-of-charge.26221/
 
 # My Recommandation
 
