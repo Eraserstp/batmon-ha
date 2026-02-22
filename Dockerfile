@@ -1,36 +1,29 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
+FROM python:3.12-alpine
 
 WORKDIR /app
 
-# Install requirements for add-on
-# (alpine image)
-# RUN apk add --no-cache python3 bluez py-pip git
+RUN apk add --no-cache \
+    bluez \
+    dbus \
+    git \
+    bash
 
-RUN apk add python3~3.13 || apk add python3~3.12 || apk add python3
-RUN apk add bluez
-#RUN apk add bluez < 5.66-r4"
-# https://pkgs.alpinelinux.org/packages?name=bluez&branch=v3.16&repo=&arch=aarch64&maintainer=
-RUN apk add py-pip
-RUN apk add git
-# py3-pip
+COPY requirements.txt ./
 
-# copy files
+# main runtime venv
+RUN python3 -m venv /app/venv \
+    && /app/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /app/venv/bin/pip install --no-cache-dir -r requirements.txt \
+    && /app/venv/bin/pip install --no-cache-dir influxdb \
+    && /app/venv/bin/pip install --no-cache-dir 'git+https://github.com/patman15/aiobmsble'
+
+# separate venv for pairing agent capable bleak build
+RUN python3 -m venv /app/venv_bleak_pairing \
+    && /app/venv_bleak_pairing/bin/pip install --no-cache-dir --upgrade pip \
+    && /app/venv_bleak_pairing/bin/pip install --no-cache-dir -r requirements.txt \
+    && /app/venv_bleak_pairing/bin/pip install --no-cache-dir 'git+https://github.com/jpeters-ml/bleak@feature/windowsPairing' || true
+
 COPY . .
+RUN chmod +x /app/docker_entrypoint.sh
 
-# create a separate venv for a specific bleak version that has a pairing agent that can pair devices with a PSK
-RUN python3 -m venv venv_bleak_pairing
-RUN venv_bleak_pairing/bin/pip3 install -r requirements.txt
-RUN venv_bleak_pairing/bin/pip3 install 'git+https://github.com/jpeters-ml/bleak@feature/windowsPairing' || true
-
-
-RUN python3 -m venv venv
-RUN venv/bin/pip3 install -r requirements.txt
-RUN venv/bin/pip3 install influxdb || true
-#RUN venv/bin/pip3 install "aiobmsble==0.11.0" || true
-RUN venv/bin/pip3 install 'git+https://github.com/patman15/aiobmsble' || true
-RUN . venv/bin/activate
-
-RUN chmod a+x addon_main.sh
-
-CMD ["./addon_main.sh" ]
+ENTRYPOINT ["/app/docker_entrypoint.sh"]
